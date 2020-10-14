@@ -75,7 +75,7 @@ async def write_event(
             {
                 **dict(
                     sender_id=event.sender,
-                    sender_name=room.users[event.sender].display_name,
+                    sender_name=room.users[event.sender].display_name if event.sender in room.users else None,
                     timestamp=event.server_timestamp,
                 ),
                 **event_payload,
@@ -88,16 +88,17 @@ async def write_event(
     elif isinstance(event, (RoomMessageMedia, RoomEncryptedMedia)):
         media_data = await download_mxc(client, event.url)
         filename = f"{media_dir}/{event.body}"
-        async with aiofiles.open(filename, "wb") as f:
-            await f.write(
-                crypto.attachments.decrypt_attachment(
-                    media_data,
-                    event.source["content"]["file"]["key"]["k"],
-                    event.source["content"]["file"]["hashes"]["sha256"],
-                    event.source["content"]["file"]["iv"],
+        if "file" in event.source["content"]:
+            async with aiofiles.open(filename, "wb") as f:
+                await f.write(
+                    crypto.attachments.decrypt_attachment(
+                        media_data,
+                        event.source["content"]["file"]["key"]["k"],
+                        event.source["content"]["file"]["hashes"]["sha256"],
+                        event.source["content"]["file"]["iv"],
+                    )
                 )
-            )
-        await output_file.write(serialize_event(dict(type="media", src=filename,)))
+            await output_file.write(serialize_event(dict(type="media", src=filename,)))
     elif isinstance(event, RedactedEvent):
         await output_file.write(serialize_event(dict(type="redacted",)))
 
